@@ -1,0 +1,8 @@
+[{
+     "relation": ["delegate_permission/common.handle_all_urls"],
+     "target": {
+       "namespace": "android_app",
+       "package_name": "io.github.pruthvi_collab.twa",
+       "sha256_cert_fingerprints": ["65:E5:0B:ED:CE:40:46:19:1D:96:87:85:6E:57:18:77:F0:E9:31:D2:CD:63:F6:C2:69:EF:61:49:49:56:66:AD"]
+     }
+   }]
