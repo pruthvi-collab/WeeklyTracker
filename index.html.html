@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a0f1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>Weekly Tracker v41</title>
+  <script>
+    // Apply saved theme immediately to prevent flash
+    try {
+      var savedTheme = localStorage.getItem("creditrack-theme") || "dark";
+      document.documentElement.setAttribute("data-theme", savedTheme);
+    } catch (e) {}
+  </script>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <script>
+    // Register service worker for offline support + PWA installability
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+  <style>
+    :root[data-theme="dark"] {
+      --bg: #0a0f1a;
+      --card: #111827;
+      --card-alt: #1a2234;
+      --accent: #22d3a7;
+      --accent-dim: #146b55;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --border: #1e293b;
+      --success: #10b981;
+      --input-bg: #0f172a;
+      --row-hover: rgba(34,211,167,0.04);
+      --row-active: rgba(34,211,167,0.08);
+      --plan-active-bg: rgba(34,211,167,0.08);
+      --badge-bg: rgba(16,185,129,0.15);
+      --delete-bg: rgba(239,68,68,0.1);
+      --delete-border: rgba(239,68,68,0.2);
+      --fab-text: #0a0f1a;
+    }
+    :root[data-theme="light"] {
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --card-alt: #eef2f7;
+      --accent: #0d9488;
+      --accent-dim: #065f54;
+      --warn: #d97706;
+      --danger: #dc2626;
+      --text: #0f172a;
+      --text-dim: #64748b;
+      --border: #d7dde6;
+      --success: #059669;
+      --input-bg: #ffffff;
+      --row-hover: rgba(13,148,136,0.06);
+      --row-active: rgba(13,148,136,0.12);
+      --plan-active-bg: rgba(13,148,136,0.08);
+      --badge-bg: rgba(5,150,105,0.15);
+      --delete-bg: rgba(220,38,38,0.08);
+      --delete-border: rgba(220,38,38,0.2);
+      --fab-text: #ffffff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
+      transition: background 0.25s, color 0.25s;
+    }
+    input { font-family: 'DM Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 0; }
+
+    .container { max-width: 480px; margin: 0 auto; padding: 20px 16px; position: relative; min-height: 100vh; }
+
+    /* Animations */
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    .fade-in { animation: fadeIn 0.3s ease forwards; }
+    .scale-in { animation: scaleIn 0.25s ease forwards; }
+
+    .back-btn {
+      background: var(--card-alt); border: none; color: var(--text); font-size: 20px;
+      width: 40px; height: 40px; border-radius: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .stat-card { background: var(--card-alt); border-radius: 12px; padding: 12px 10px; text-align: center; }
+    .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+    .stat-value { font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 16px; cursor: pointer; transition: transform 0.15s;
+    }
+    .card:active { transform: scale(0.98); }
+
+    .plan-option {
+      border-radius: 14px; padding: 18px; cursor: pointer; transition: all 0.25s;
+    }
+    .plan-option.active { background: var(--plan-active-bg); border: 2px solid var(--accent); }
+    .plan-option.inactive { background: var(--card-alt); border: 2px solid var(--border); }
+
+    .week-row {
+      display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+      cursor: pointer; transition: background 0.2s;
+    }
+    .week-row:active { background: var(--row-active); }
+    .week-row.checked { background: var(--row-hover); }
+
+    .checkbox {
+      width: 24px; height: 24px; border-radius: 7px; display: flex;
+      align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+    }
+    .checkbox.off { border: 2px solid var(--text-dim); background: transparent; }
+    .checkbox.on { border: none; background: var(--accent); }
+
+    .fab {
+      width: 100%; max-width: 440px; height: 52px; margin: 24px auto 40px;
+      border-radius: 14px; background: var(--accent); color: var(--fab-text); font-size: 16px;
+      font-weight: 700; border: none; cursor: pointer;
+      box-shadow: 0 4px 24px rgba(34,211,167,0.3);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .fab:active { transform: scale(0.92); }
+
+    .primary-btn {
+      width: 100%; padding: 16px; font-size: 16px; font-weight: 700;
+      background: var(--accent); color: var(--fab-text); border: none; border-radius: 14px;
+      cursor: pointer; letter-spacing: 0.5px; font-family: 'DM Sans', sans-serif;
+    }
+    .primary-btn:disabled { opacity: 0.4; }
+    .primary-btn:active:not(:disabled) { transform: scale(0.98); }
+
+    .delete-btn {
+      width: 100%; padding: 14px; font-size: 14px; font-weight: 600;
+      background: var(--delete-bg); color: var(--danger);
+      border: 1px solid var(--delete-border); border-radius: 12px;
+      cursor: pointer; font-family: 'DM Sans', sans-serif;
+    }
+
+    .input-field {
+      width: 100%; padding: 14px 16px; font-size: 16px; background: var(--input-bg);
+      border: 2px solid var(--border); border-radius: 12px; color: var(--text);
+      outline: none; font-family: 'DM Sans', sans-serif;
+    }
+    .input-field:focus { border-color: var(--accent); }
+
+    .progress-bar { background: var(--bg); border-radius: 100px; overflow: hidden; }
+    .progress-fill { background: linear-gradient(90deg, var(--accent), var(--accent-dim)); height: 100%; border-radius: 100px; transition: width 0.4s ease; }
+
+    .badge-complete {
+      font-size: 12px; background: var(--badge-bg); color: var(--success);
+      padding: 3px 10px; border-radius: 20px; font-weight: 600;
+    }
+
+    .hidden { display: none; }
+
+    /* Unified menu icon style */
+    .menu-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .amt { transition: color 0.15s; }
+  </style>
+</head>
+<body>
+  <div class="container" id="app"></div>
+  <input id="importFileInput" type="file" accept="application/json,.json,text/plain,.txt" style="display:none" />
+
+  <script>
+    // ===== DATA & STATE =====
+    // total = amount collected from all weekly payments (loan amount given)
+    const PLANS = {
+      10000: { principal: 150000, weekly: 10000, weeks: 15, total: 150000, weeklyAmounts: null },
+      5000:  { principal: 75000,  weekly: 5000,  weeks: 15, total: 75000,  weeklyAmounts: null },
+      4000:  { principal: 40000,  weekly: 4000,  weeks: 10, total: 40000,  weeklyAmounts: null },
+      3500:  { principal: 50000,  weekly: 3500,  weeks: 14, total: 50000,  weeklyAmounts: [3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,3500,4500] },
+    };
+
+    // Get amount for a specific week (handles custom last-week amounts)
+    function getWeekAmount(plan, weekIdx) {
+      const p = PLANS[plan];
+      if (p.weeklyAmounts) return p.weeklyAmounts[weekIdx] || p.weekly;
+      return p.weekly;
+    }
+
+    // Get the plan object for a borrower — either a standard PLANS entry or their custom plan
+    function getPlan(b) {
+      if (!b) return PLANS[5000];
+      if (b.customPlan) return b.customPlan;
+      const p = PLANS[b.plan];
+      if (p) return p;
+      // Fallback: reconstruct a minimal plan from the borrower's weeks array
+      // This prevents crashes from corrupted or imported data
+      const weeksCount = b.weeks ? b.weeks.length : 15;
+      const guess = Number(b.plan) || 5000;
+      return {
+        weekly: guess,
+        weeks: weeksCount,
+        total: guess * weeksCount,
+        principal: guess * weeksCount,
+        weeklyAmounts: null,
+        isFallback: true,
+      };
+    }
+
+    // Get amount for a specific week of a borrower (uses custom plan if set)
+    function getBorrowerWeekAmount(b, weekIdx) {
+      const p = getPlan(b);
+      if (!p) return 0;
+      if (p.weeklyAmounts) return p.weeklyAmounts[weekIdx] || p.weekly;
+      return p.weekly;
+    }
+
+    // Get total received for a borrower based on which weeks are checked
+    function calcReceived(b) {
+      return b.weeks.reduce((sum, w, i) => sum + (isWeekPaid(w) ? getBorrowerWeekAmount(b, i) : 0), 0);
+    }
+
+    // Check if a borrower is overdue based on their Week 1 payment date
+    // Returns: { overdue: bool, daysLate: number, nextWeekNum: number }
+    // Get days since last payment (most recent ticked week's date)
+    // Returns null if no payments yet
+    function getDaysSinceLastPayment(b) {
+      let latestMs = 0;
+      b.weeks.forEach(w => {
+        if (isWeekPaid(w)) {
+          const d = new Date(getWeekDate(w)).getTime();
+          if (d > latestMs) latestMs = d;
+        }
+      });
+      if (latestMs === 0) return null;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = today.getTime() - latestMs;
+      return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+    }
+
+    function getOverdueStatus(b) {
+      const firstWeek = b.weeks[0];
+      // Need Week 1 to be paid to start the clock
+      if (!isWeekPaid(firstWeek)) return { overdue: false, daysLate: 0, nextWeekNum: 0 };
+
+      // Find first unpaid week
+      const nextIdx = b.weeks.findIndex(w => !isWeekPaid(w));
+      if (nextIdx === -1) return { overdue: false, daysLate: 0, nextWeekNum: 0 }; // all paid
+
+      // Expected date for the next unpaid week = Week 1 date + (nextIdx * 7 days)
+      const week1Date = new Date(getWeekDate(firstWeek));
+      const expectedDate = new Date(week1Date);
+      expectedDate.setDate(week1Date.getDate() + nextIdx * 7);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      expectedDate.setHours(0, 0, 0, 0);
+
+      const diffMs = today - expectedDate;
+      const daysLate = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      return {
+        overdue: daysLate > 0,
+        daysLate: daysLate,
+        nextWeekNum: nextIdx + 1,
+      };
+    }
+
+    let borrowers = []; // Will be loaded; preloaded fallback below
+    let currentView = "home";
+    let selectedId = null;
+    let newPlan = 5000;
+    let confirmDeleteId = null;
+    let editingNameId = null;
+    let sortBy = "newest"; // newest, oldest, name, balance
+    let filterBy = "all";  // all, active, completed
+    let searchQuery = "";
+    let appLocked = false;
+    let idleTimer = null;
+    const IDLE_LOCK_MS = 5 * 60 * 1000; // 5 minutes
+    let pinInput = "";
+    let pinStage = "enter"; // enter, set-new, confirm-new
+    let pinTempNew = "";
+    let pinError = "";
+    let theme = "dark"; // dark, light
+    let customPrincipal = "";
+    let customWeekly = "";
+    let customWeeks = "";
+    let customFinalWeekly = "";
+    let newRepaymentDay = "Monday";
+
+    // ===== STORAGE =====
+    function loadData() {
+      try {
+        const raw = localStorage.getItem("weekly-payments-logbook");
+        if (raw) {
+          borrowers = JSON.parse(raw);
+        }
+      } catch (e) {}
+      try {
+        theme = localStorage.getItem("creditrack-theme") || "dark";
+        applyTheme();
+      } catch (e) {}
+      try {
+        if (localStorage.getItem("creditrack-pin")) {
+          appLocked = true;
+          pinStage = "enter";
+        }
+      } catch (e) {}
+    }
+    function saveData() {
+      try {
+        localStorage.setItem("weekly-payments-logbook", JSON.stringify(borrowers));
+      } catch (e) {}
+    }
+
+    // ===== AUTO-BACKUP =====
+    const AUTO_BACKUP_KEY = "creditrack-auto-backup";
+    const AUTO_BACKUP_LAST_KEY = "creditrack-auto-backup-last";
+    const AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+    function isAutoBackupEnabled() {
+      try { return localStorage.getItem(AUTO_BACKUP_KEY) === "1"; } catch (e) { return false; }
+    }
+    function setAutoBackupEnabled(val) {
+      try { localStorage.setItem(AUTO_BACKUP_KEY, val ? "1" : "0"); } catch (e) {}
+    }
+    function getLastAutoBackupTime() {
+      try { return Number(localStorage.getItem(AUTO_BACKUP_LAST_KEY) || 0); } catch (e) { return 0; }
+    }
+    function setLastAutoBackupTime(ts) {
+      try { localStorage.setItem(AUTO_BACKUP_LAST_KEY, String(ts)); } catch (e) {}
+    }
+    function runAutoBackupIfDue() {
+      if (!isAutoBackupEnabled()) return;
+      const now = Date.now();
+      const last = getLastAutoBackupTime();
+      if (now - last < AUTO_BACKUP_INTERVAL_MS) return;
+      // Take a silent in-app snapshot
+      const data = { version: 1, exportedAt: new Date().toISOString(), borrowers };
+      const json = JSON.stringify(data, null, 2);
+      saveBackupSnapshot(json);
+      setLastAutoBackupTime(now);
+    }
+    function toggleAutoBackup() {
+      const enabled = !isAutoBackupEnabled();
+      setAutoBackupEnabled(enabled);
+      if (enabled) runAutoBackupIfDue();
+      render();
+    }
+
+    // ===== THEME =====
+    function applyTheme() {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
+    function toggleTheme() {
+      theme = theme === "dark" ? "light" : "dark";
+      try { localStorage.setItem("creditrack-theme", theme); } catch (e) {}
+      applyTheme();
+      render();
+    }
+
+    // ===== PIN =====
+    function hasPIN() {
+      try { return !!localStorage.getItem("creditrack-pin"); } catch (e) { return false; }
+    }
+
+    // ===== IDLE AUTO-LOCK =====
+    function resetIdleTimer() {
+      if (idleTimer) clearTimeout(idleTimer);
+      // Only arm the timer if a PIN is set and the app is currently unlocked
+      if (!hasPIN() || appLocked) return;
+      idleTimer = setTimeout(() => {
+        appLocked = true;
+        pinInput = "";
+        pinError = "";
+        pinStage = "enter";
+        currentView = "home";
+        render();
+      }, IDLE_LOCK_MS);
+    }
+    function clearIdleTimer() {
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+    }
+    function getPIN() {
+      try { return localStorage.getItem("creditrack-pin") || ""; } catch (e) { return ""; }
+    }
+    function setPIN(pin) {
+      try { localStorage.setItem("creditrack-pin", pin); } catch (e) {}
+    }
+    function removePIN() {
+      try { localStorage.removeItem("creditrack-pin"); } catch (e) {}
+    }
+    function pinDigit(d) {
+      if (pinInput.length >= 4) return;
+      pinInput += d;
+      pinError = "";
+
+      if (pinInput.length === 4) {
+        if (pinStage === "enter") {
+          // Unlock mode
+          if (pinInput === getPIN()) {
+            appLocked = false;
+            pinInput = "";
+            render();
+          } else {
+            pinError = "Wrong PIN, try again";
+            pinInput = "";
+            render();
+          }
+          return;
+        }
+        if (pinStage === "set-new") {
+          pinTempNew = pinInput;
+          pinInput = "";
+          pinStage = "confirm-new";
+          render();
+          return;
+        }
+        if (pinStage === "confirm-new") {
+          if (pinInput === pinTempNew) {
+            setPIN(pinInput);
+            pinInput = "";
+            pinTempNew = "";
+            pinStage = "enter";
+            currentView = "menu";
+            alert("PIN set successfully!");
+            render();
+          } else {
+            pinError = "PINs don't match, start over";
+            pinInput = "";
+            pinTempNew = "";
+            pinStage = "set-new";
+            render();
+          }
+          return;
+        }
+      }
+      render();
+    }
+    function pinBackspace() {
+      pinInput = pinInput.slice(0, -1);
+      pinError = "";
+      render();
+    }
+    function startSetPIN() {
+      currentView = "pin-setup";
+      pinInput = "";
+      pinTempNew = "";
+      pinStage = "set-new";
+      pinError = "";
+      render();
+    }
+    function confirmRemovePIN() {
+      if (confirm("Remove PIN lock? The app will no longer be protected.")) {
+        removePIN();
+        alert("PIN removed.");
+        render();
+      }
+    }
+
+    // ===== HELPERS =====
+    function fmt(n) {
+      const formatted = "₹" + Number(n).toLocaleString("en-IN");
+      return `<span class="amt">${formatted}</span>`;
+    }
+    function fmtDate(iso) {
+      if (!iso) return "";
+      return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+    }
+    // Compact DD/MM for borrower cards
+    function fmtShortDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      return `${day}/${month}`;
+    }
+    // Return YYYY-MM-DD in UTC (matches what date inputs expect for stored UTC dates)
+    function toUtcDateStr(iso) {
+      if (!iso) return "";
+      return new Date(iso).toISOString().slice(0, 10);
+    }
+    function isWeekPaid(w) { return typeof w === "boolean" ? w : w?.paid; }
+    function getWeekDate(w) { return typeof w === "boolean" ? null : w?.date; }
+    function getSelected() { return borrowers.find(b => b.id === selectedId); }
+
+    // ===== ACTIONS =====
+    function addBorrower() {
+      const input = document.getElementById("nameInput");
+      const name = input?.value?.trim();
+      if (!name) return;
+
+      let planKey = newPlan;
+      let customPlan = null;
+      let weeksCount;
+
+      if (newPlan === "custom") {
+        // Read current values from DOM
+        const pEl = document.getElementById("customPrincipalInput");
+        const wEl = document.getElementById("customWeeklyInput");
+        const nEl = document.getElementById("customWeeksInput");
+        const fEl = document.getElementById("customFinalWeeklyInput");
+        const principal = Number(pEl?.value);
+        const weekly = Number(wEl?.value);
+        const weeks = Number(nEl?.value);
+        const finalWeekly = fEl?.value ? Number(fEl.value) : 0;
+        if (!principal || principal <= 0) { alert("Enter a valid principal amount"); return; }
+        if (!weekly || weekly <= 0) { alert("Enter a valid weekly amount"); return; }
+        if (!weeks || weeks <= 0 || weeks > 52) { alert("Enter a valid number of weeks (1-52)"); return; }
+        if (fEl?.value && (finalWeekly <= 0)) { alert("Enter a valid final week amount"); return; }
+
+        // Build weeklyAmounts array if final week differs
+        let weeklyAmounts = null;
+        let total;
+        if (finalWeekly > 0 && finalWeekly !== weekly) {
+          weeklyAmounts = [];
+          for (let i = 0; i < weeks - 1; i++) weeklyAmounts.push(weekly);
+          weeklyAmounts.push(finalWeekly);
+          total = weekly * (weeks - 1) + finalWeekly;
+        } else {
+          total = weekly * weeks;
+        }
+
+        customPlan = {
+          principal,
+          weekly,
+          weeks,
+          total,
+          weeklyAmounts,
+          isCustom: true,
+        };
+        planKey = "custom";
+        weeksCount = weeks;
+      } else {
+        weeksCount = PLANS[newPlan].weeks;
+      }
+
+      const commentEl = document.getElementById("commentInput");
+      const comment = commentEl?.value?.trim() || "";
+      const repayEl = document.getElementById("repaymentDayInput");
+      const repaymentDay = repayEl?.value || newRepaymentDay;
+
+      const newBorrower = {
+        id: Date.now().toString(),
+        name,
+        plan: planKey,
+        repaymentDay,
+        weeks: Array(weeksCount).fill(null).map(() => ({ paid: false, date: null })),
+        createdAt: new Date().toISOString(),
+      };
+      if (customPlan) newBorrower.customPlan = customPlan;
+      if (comment) newBorrower.comment = comment;
+
+      borrowers.push(newBorrower);
+      saveData();
+      newPlan = 5000;
+      customPrincipal = "";
+      customWeekly = "";
+      customWeeks = "";
+      customFinalWeekly = "";
+      newRepaymentDay = "Monday";
+      currentView = "home";
+      render();
+    }
+
+    function updateBorrowerComment(id, value) {
+      const b = borrowers.find(x => x.id === id);
+      if (!b) return;
+      b.comment = value;
+      saveData();
+      // No re-render — would lose textarea focus
+    }
+
+    function toggleWeek(borrowerId, weekIdx) {
+      const b = borrowers.find(x => x.id === borrowerId);
+      if (!b) return;
+      const current = b.weeks[weekIdx];
+      const isPaid = isWeekPaid(current);
+      b.weeks[weekIdx] = isPaid ? { paid: false, date: null } : { paid: true, date: new Date().toISOString() };
+      saveData();
+      render();
+    }
+
+    function quickTick(borrowerId, event) {
+      if (event) event.stopPropagation();
+      const b = borrowers.find(x => x.id === borrowerId);
+      if (!b) return;
+      // Find first unpaid week
+      const idx = b.weeks.findIndex(w => !isWeekPaid(w));
+      if (idx === -1) return; // already complete
+      b.weeks[idx] = { paid: true, date: new Date().toISOString() };
+      saveData();
+      render();
+    }
+
+    // ===== DIRECTORY HANDLE STORAGE (IndexedDB) =====
+    // File System Access API returns a handle object that can't be stored in localStorage.
+    // We persist it in IndexedDB so the same folder is remembered across sessions.
+    function openHandleDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open("creditrack-handles", 1);
+        req.onupgradeneeded = () => {
+          req.result.createObjectStore("handles");
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    async function saveDirHandle(handle) {
+      try {
+        const db = await openHandleDB();
+        const tx = db.transaction("handles", "readwrite");
+        tx.objectStore("handles").put(handle, "exportDir");
+        return new Promise(res => { tx.oncomplete = () => res(true); });
+      } catch (e) { return false; }
+    }
+    async function loadDirHandle() {
+      try {
+        const db = await openHandleDB();
+        const tx = db.transaction("handles", "readonly");
+        return new Promise(res => {
+          const req = tx.objectStore("handles").get("exportDir");
+          req.onsuccess = () => res(req.result || null);
+          req.onerror = () => res(null);
+        });
+      } catch (e) { return null; }
+    }
+    async function clearDirHandle() {
+      try {
+        const db = await openHandleDB();
+        const tx = db.transaction("handles", "readwrite");
+        tx.objectStore("handles").delete("exportDir");
+      } catch (e) {}
+    }
+
+    function buildTimestampedFilename() {
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const ts = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      return `creditrack-backup-${ts}.txt`;
+    }
+
+    async function exportData() {
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        borrowers: borrowers,
+      };
+      const json = JSON.stringify(data, null, 2);
+
+      // Always save to in-app history
+      saveBackupSnapshot(json);
+
+      const filename = buildTimestampedFilename();
+
+      // Try File System Access API — pick folder once, remember it for next time
+      if ('showDirectoryPicker' in window) {
+        try {
+          let dirHandle = await loadDirHandle();
+
+          // Verify existing handle still has permission
+          if (dirHandle) {
+            const perm = await dirHandle.queryPermission({ mode: "readwrite" });
+            if (perm !== "granted") {
+              const newPerm = await dirHandle.requestPermission({ mode: "readwrite" });
+              if (newPerm !== "granted") dirHandle = null;
+            }
+          }
+
+          // No handle yet — ask user to pick a folder
+          if (!dirHandle) {
+            dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+            await saveDirHandle(dirHandle);
+          }
+
+          // Write the file
+          const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(json);
+          await writable.close();
+
+          alert(`Backup saved as:\n${filename}\n\nIn your chosen folder.`);
+          return;
+        } catch (err) {
+          if (err.name === "AbortError") return; // user cancelled
+          console.error("FS Access error:", err);
+          // Fall through to share/download fallback
+        }
+      }
+
+      // Fallback 1: Web Share API
+      const blob = new Blob([json], { type: "text/plain" });
+      const file = new File([blob], filename, { type: "text/plain" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: "Weekly Tracker Backup",
+            text: `Weekly Tracker backup (${borrowers.length} borrowers)`,
+          });
+          return;
+        } catch (err) {
+          if (err.name === "AbortError") return;
+        }
+      }
+
+      // Fallback 2: Plain download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    async function changeExportFolder() {
+      await clearDirHandle();
+      alert("Backup folder cleared. You'll be asked to pick a new folder on your next Backup.");
+    }
+
+    function triggerImport() {
+      document.getElementById("importFileInput").click();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          const imported = data.borrowers || data; // accept raw array too
+          if (!Array.isArray(imported)) throw new Error("Invalid format");
+          if (!confirm(`Import ${imported.length} borrower(s)? This will REPLACE your current data.`)) return;
+          borrowers = imported;
+          saveData();
+          render();
+          alert("Import successful!");
+        } catch (err) {
+          alert("Import failed: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = ""; // reset so same file can be re-selected
+    }
+
+    function deleteBorrower(id) {
+      const b = borrowers.find(x => x.id === id);
+      if (!b) return;
+      const paid = b.weeks.filter(isWeekPaid).length;
+      const received = calcReceived(b);
+      const msg = `Are you sure you want to permanently delete "${b.name}"?\n\n${paid} week${paid === 1 ? '' : 's'} paid · ₹${received.toLocaleString("en-IN")} received\n\nThis action cannot be undone.`;
+      if (!confirm(msg)) {
+        confirmDeleteId = null;
+        render();
+        return;
+      }
+      borrowers = borrowers.filter(x => x.id !== id);
+      saveData();
+      confirmDeleteId = null;
+      if (selectedId === id) { selectedId = null; currentView = "home"; }
+      render();
+    }
+
+    function goDetail(id) { selectedId = id; currentView = "detail"; confirmDeleteId = null; render(); }
+    function goHome() { selectedId = null; currentView = "home"; confirmDeleteId = null; render(); }
+    function goAdd() { currentView = "add"; newPlan = 5000; customPrincipal = ""; customWeekly = ""; customWeeks = ""; customFinalWeekly = ""; newRepaymentDay = "Monday"; render(); setTimeout(() => document.getElementById("nameInput")?.focus(), 100); }
+    function goMenu() { currentView = "menu"; render(); }
+
+    function selectPlan(p) {
+      newPlan = p === "custom" ? "custom" : Number(p);
+      render();
+      setTimeout(() => { const el = document.getElementById("nameInput"); if (el) el.focus(); }, 50);
+    }
+    function updateCustomField(field, value) {
+      if (field === "principal") customPrincipal = value;
+      else if (field === "weekly") customWeekly = value;
+      else if (field === "weeks") customWeeks = value;
+      else if (field === "finalWeekly") customFinalWeekly = value;
+      // Don't re-render (keeps input focus)
+    }
+    function goSummary() { currentView = "summary"; render(); }
+    function goWeekly() { currentView = "weekly"; render(); }
+    function goDayStats() { currentView = "daystats"; render(); }
+    function goCalendar() { currentView = "calendar"; render(); }
+
+    function goArchive() { currentView = "archive"; render(); }
+    function goBackups() { currentView = "backups"; render(); }
+
+    // ===== BACKUP HISTORY =====
+    function saveBackupSnapshot(json) {
+      try {
+        let history = JSON.parse(localStorage.getItem("creditrack-backups") || "[]");
+        history.unshift({
+          id: Date.now().toString(),
+          createdAt: new Date().toISOString(),
+          data: json,
+          count: borrowers.length,
+        });
+        // Keep last 5 only
+        history = history.slice(0, 5);
+        localStorage.setItem("creditrack-backups", JSON.stringify(history));
+      } catch (e) {}
+    }
+    function getBackupHistory() {
+      try {
+        return JSON.parse(localStorage.getItem("creditrack-backups") || "[]");
+      } catch (e) { return []; }
+    }
+    function restoreBackup(id) {
+      const history = getBackupHistory();
+      const snap = history.find(h => h.id === id);
+      if (!snap) return;
+      if (!confirm(`Restore backup from ${fmtDate(snap.createdAt)} with ${snap.count} borrower(s)? This will REPLACE your current data.`)) return;
+      try {
+        const parsed = JSON.parse(snap.data);
+        borrowers = parsed.borrowers || parsed;
+        saveData();
+        alert("Restored successfully!");
+        goHome();
+      } catch (err) {
+        alert("Restore failed: " + err.message);
+      }
+    }
+    function deleteBackup(id, event) {
+      if (event) event.stopPropagation();
+      if (!confirm("Delete this backup snapshot?")) return;
+      let history = getBackupHistory();
+      history = history.filter(h => h.id !== id);
+      try { localStorage.setItem("creditrack-backups", JSON.stringify(history)); } catch (e) {}
+      render();
+    }
+
+    function askDelete(id) { confirmDeleteId = id; render(); }
+    function cancelDelete() { confirmDeleteId = null; render(); }
+
+    function updateCreditedDate(id, dateStr) {
+      const b = borrowers.find(x => x.id === id);
+      if (!b || !dateStr) return;
+      b.createdAt = new Date(dateStr + 'T00:00:00.000Z').toISOString();
+      saveData();
+      render();
+    }
+
+    function startEditName(id) { editingNameId = id; render(); setTimeout(() => { const el = document.getElementById("editNameInput"); if (el) { el.focus(); el.select(); } }, 50); }
+    function cancelEditName() { editingNameId = null; render(); }
+    function saveBorrowerName(id) {
+      const input = document.getElementById("editNameInput");
+      const name = input?.value?.trim();
+      if (!name) return;
+      const b = borrowers.find(x => x.id === id);
+      if (!b) return;
+      b.name = name;
+      editingNameId = null;
+      saveData();
+      render();
+    }
+
+    function updateWeekDate(borrowerId, weekIdx, dateStr) {
+      const b = borrowers.find(x => x.id === borrowerId);
+      if (!b || !dateStr) return;
+      const current = b.weeks[weekIdx];
+      // Only update if currently paid
+      if (!isWeekPaid(current)) return;
+      b.weeks[weekIdx] = { paid: true, date: new Date(dateStr + 'T00:00:00.000Z').toISOString() };
+      saveData();
+      render();
+    }
+
+    function setSort(s) { sortBy = s; render(); }
+    function setFilter(f) { filterBy = f; render(); }
+    function setSearch(q) {
+      searchQuery = q;
+      // Update only the list, not the input, to preserve focus
+      const listEl = document.getElementById("borrowerList");
+      if (listEl) listEl.innerHTML = renderBorrowerList();
+    }
+
+    function getFilteredBorrowers() {
+      let list = borrowers.slice();
+
+      // By default, hide completed borrowers from home (they live in the archive)
+      if (filterBy === "all") {
+        list = list.filter(b => !b.weeks.every(isWeekPaid));
+      } else if (filterBy === "active") {
+        list = list.filter(b => !b.weeks.every(isWeekPaid));
+      }
+      // filterBy === "completed" keeps everyone; used in archive view
+
+      // Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        list = list.filter(b => b.name.toLowerCase().includes(q));
+      }
+
+      // Sort
+      if (sortBy === "newest") {
+        list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      } else if (sortBy === "oldest") {
+        list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+      } else if (sortBy === "name") {
+        list.sort((a, b) => a.name.localeCompare(b.name));
+      } else if (sortBy === "balance") {
+        list.sort((a, b) => {
+          const balA = getPlan(a).total - calcReceived(a);
+          const balB = getPlan(b).total - calcReceived(b);
+          return balB - balA; // highest balance first
+        });
+      } else if (sortBy === "duesoon") {
+        // Soonest due date first. Overdue (daysLate > 0) ranks ahead of not-yet-due,
+        // and within each group, more urgent (higher daysLate) comes first.
+        list.sort((a, b) => {
+          const oA = getOverdueStatus(a);
+          const oB = getOverdueStatus(b);
+          return oB.daysLate - oA.daysLate;
+        });
+      }
+
+      return list;
+    }
+
+    function getCompletedBorrowers() {
+      return borrowers.filter(b => b.weeks.every(isWeekPaid))
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+
+    function getMonthlySummary() {
+      const now = new Date();
+      const month = now.getMonth();
+      const year = now.getFullYear();
+      let received = 0;
+      let expected = 0;
+      const paidBorrowers = [];
+
+      // Single source of truth: weeks SCHEDULED (by createdAt + n*7 days) to be due
+      // this calendar month. A scheduled week counts toward "received" only if that
+      // exact week-slot is paid — not just any payment dated this month — so the
+      // received/expected totals stay built from the same set of week-slots and
+      // can never disagree (see weekly summary fix for the same issue).
+      borrowers.forEach(b => {
+        const plan = getPlan(b);
+        const credited = new Date(b.createdAt);
+        for (let i = 0; i < plan.weeks; i++) {
+          const dueDate = new Date(credited);
+          dueDate.setDate(dueDate.getDate() + (i + 1) * 7);
+          if (dueDate.getMonth() === month && dueDate.getFullYear() === year) {
+            const amt = getBorrowerWeekAmount(b, i);
+            expected += amt;
+            if (isWeekPaid(b.weeks[i])) {
+              received += amt;
+              const existing = paidBorrowers.find(x => x.id === b.id);
+              if (existing) {
+                existing.amount += amt;
+                existing.weeks += 1;
+              } else {
+                paidBorrowers.push({ id: b.id, name: b.name, amount: amt, weeks: 1 });
+              }
+            }
+          }
+        }
+      });
+
+      return { received, expected, paidBorrowers, monthName: now.toLocaleDateString("en-IN", { month: "long", year: "numeric" }) };
+    }
+
+
+    function getWeeklySummary() {
+      // Week is Monday-Sunday, computed in UTC since payment dates are stored as UTC midnight
+      const now = new Date();
+      // Get today's UTC year/month/day
+      const todayUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const dayOfWeek = todayUtc.getUTCDay(); // 0 = Sunday, 1 = Monday ... 6 = Saturday
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const weekStart = new Date(todayUtc);
+      weekStart.setUTCDate(todayUtc.getUTCDate() - daysToMonday);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setUTCDate(weekStart.getUTCDate() + 7);
+
+      let received = 0;
+      let expected = 0;
+      const paidThisWeek = [];
+      const expectedThisWeek = [];
+
+      // Single source of truth: weeks SCHEDULED to be due in this Mon-Sun window.
+      // A scheduled week counts toward "received" only if that exact week-slot is
+      // paid (regardless of which date it was ticked on), and toward "expected"
+      // either way. This keeps the progress bar and the Pending list in sync —
+      // they are now built from the same set of week-slots instead of two
+      // independently-filtered lists (one by payment date, one by due date)
+      // that could disagree whenever a payment was logged early or late.
+      borrowers.forEach(b => {
+        const plan = getPlan(b);
+        if (b.weeks.every(isWeekPaid)) return; // fully paid, nothing scheduled
+        const credited = new Date(b.createdAt);
+        for (let i = 0; i < plan.weeks; i++) {
+          // Schedule: due date = credited UTC date + (i+1)*7 days
+          const dueDate = new Date(credited);
+          dueDate.setUTCDate(credited.getUTCDate() + (i + 1) * 7);
+          // Normalize to UTC midnight for comparison
+          const dueUtc = new Date(Date.UTC(dueDate.getUTCFullYear(), dueDate.getUTCMonth(), dueDate.getUTCDate()));
+          if (dueUtc >= weekStart && dueUtc < weekEnd) {
+            const amt = getBorrowerWeekAmount(b, i);
+            const isPaid = isWeekPaid(b.weeks[i]);
+            expected += amt;
+            expectedThisWeek.push({ id: b.id, name: b.name, weekNum: i + 1, amount: amt, dueDate: dueUtc, isPaid });
+            if (isPaid) {
+              received += amt;
+              const paidDate = new Date(getWeekDate(b.weeks[i]));
+              paidThisWeek.push({ name: b.name, weekNum: i + 1, amount: amt, date: paidDate });
+            }
+          }
+        }
+      });
+
+      // Build label: weekStart (Monday) to (weekEnd - 1 day = Sunday) using UTC-safe formatting
+      const lastDay = new Date(weekEnd);
+      lastDay.setUTCDate(weekEnd.getUTCDate() - 1);
+      const weekLabel = `${weekStart.toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" })} – ${lastDay.toLocaleDateString("en-IN", { day: "2-digit", month: "short", timeZone: "UTC" })}`;
+
+      return { received, expected, paidThisWeek, expectedThisWeek, weekLabel };
+    }
+
+    // ===== RENDER =====
+    function render() {
+      const app = document.getElementById("app");
+      if (appLocked) return renderLockScreen(app);
+      if (currentView === "pin-setup") return renderPinSetup(app);
+      if (currentView === "detail") return renderDetail(app);
+      if (currentView === "add") return renderAdd(app);
+      if (currentView === "menu") return renderMenu(app);
+      if (currentView === "summary") return renderSummary(app);
+      if (currentView === "weekly") return renderWeekly(app);
+      if (currentView === "daystats") return renderDayStats(app);
+      if (currentView === "calendar") return renderCalendar(app);
+      if (currentView === "archive") return renderArchive(app);
+      if (currentView === "backups") return renderBackups(app);
+      renderHome(app);
+    }
+
+    function renderPinKeypad(title, subtitle) {
+      const dots = [0,1,2,3].map(i => `<div style="width:14px;height:14px;border-radius:50%;background:${i < pinInput.length ? 'var(--accent)' : 'transparent'};border:2px solid var(--accent)"></div>`).join("");
+      const keys = [1,2,3,4,5,6,7,8,9];
+      let keypad = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:280px;margin:0 auto">`;
+      keys.forEach(k => {
+        keypad += `<button onclick="pinDigit('${k}')" style="background:var(--card-alt);color:var(--text);border:none;border-radius:50%;width:72px;height:72px;font-size:26px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;justify-self:center">${k}</button>`;
+      });
+      keypad += `<div></div><button onclick="pinDigit('0')" style="background:var(--card-alt);color:var(--text);border:none;border-radius:50%;width:72px;height:72px;font-size:26px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;justify-self:center">0</button>
+      <button onclick="pinBackspace()" style="background:transparent;color:var(--text-dim);border:none;width:72px;height:72px;font-size:22px;cursor:pointer;justify-self:center">⌫</button></div>`;
+
+      return `
+        <div style="text-align:center;padding:40px 16px">
+          <div style="font-size:48px;margin-bottom:16px">🔒</div>
+          <div style="font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px">${title}</div>
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:24px">${subtitle}</div>
+          <div style="display:flex;gap:14px;justify-content:center;margin-bottom:18px">${dots}</div>
+          ${pinError ? `<div style="font-size:12px;color:var(--danger);margin-bottom:16px">${pinError}</div>` : '<div style="height:16px;margin-bottom:16px"></div>'}
+          ${keypad}
+        </div>`;
+    }
+
+    function renderLockScreen(app) {
+      app.innerHTML = `<div class="fade-in">${renderPinKeypad("Enter PIN", "Weekly Tracker is locked")}</div>`;
+    }
+
+    function renderPinSetup(app) {
+      const title = pinStage === "set-new" ? "Set New PIN" : "Confirm PIN";
+      const subtitle = pinStage === "set-new" ? "Choose a 4-digit PIN" : "Re-enter the same PIN";
+      app.innerHTML = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <h2 style="font-size:20px;font-weight:700;color:var(--text)">PIN Setup</h2>
+          </div>
+          ${renderPinKeypad(title, subtitle)}
+        </div>`;
+    }
+
+    function renderMenu(app) {
+      const completedCount = getCompletedBorrowers().length;
+      const activeBorrowers = borrowers.filter(b => !b.weeks.every(isWeekPaid));
+      const totalPending = activeBorrowers.reduce((s, b) => s + (getPlan(b).total - calcReceived(b)), 0);
+
+      app.innerHTML = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goHome()">←</button>
+            <h2 style="font-size:22px;font-weight:700;color:var(--text)">Menu</h2>
+          </div>
+
+          ${borrowers.length > 0 ? `
+            <div style="margin-bottom:24px">
+              <div class="stat-card"><div class="stat-label">Total Pending</div><div class="stat-value" style="color:var(--warn)">${fmt(totalPending)}</div></div>
+            </div>
+          ` : ''}
+
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card" onclick="goWeekly()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(34,211,167,0.15);color:#22d3a7">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">This Week's Collection</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Expected vs received this week</div>
+                </div>
+                <span style="color:var(--text-dim);font-size:18px">›</span>
+              </div>
+            </div>
+
+            <div class="card" onclick="goSummary()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(59,130,246,0.15);color:#3b82f6">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Monthly Summary</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Received this month vs expected</div>
+                </div>
+                <span style="color:var(--text-dim);font-size:18px">›</span>
+              </div>
+            </div>
+
+            <div class="card" onclick="goArchive()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(148,163,184,0.15);color:#94a3b8">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Completed Archive</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${completedCount} completed ${completedCount === 1 ? 'loan' : 'loans'}</div>
+                </div>
+                <span style="color:var(--text-dim);font-size:18px">›</span>
+              </div>
+            </div>
+
+            <div class="card" onclick="exportData()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(16,185,129,0.15);color:#10b981">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Backup Now</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Save to folder with timestamp</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" onclick="triggerImport()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(249,115,22,0.15);color:#f97316">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Restore from File</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Load a previous backup file</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" onclick="goBackups()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(100,116,139,0.15);color:#64748b">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Backup History</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${getBackupHistory().length} saved · Last 5 kept</div>
+                </div>
+                <span style="color:var(--text-dim);font-size:18px">›</span>
+              </div>
+            </div>
+
+            <div class="card" onclick="toggleTheme()">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(234,179,8,0.15);color:#eab308">
+                  ${theme === 'dark'
+                    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`
+                    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`
+                  }
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">Theme</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Currently ${theme === 'dark' ? 'Dark' : 'Light'} mode · Tap to switch</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card" onclick="${hasPIN() ? 'confirmRemovePIN()' : 'startSetPIN()'}">
+              <div style="display:flex;align-items:center;gap:14px">
+                <div class="menu-icon" style="background:rgba(239,68,68,0.15);color:#ef4444">
+                  ${hasPIN()
+                    ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`
+                    : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`
+                  }
+                </div>
+                <div style="flex:1">
+                  <div style="font-size:16px;font-weight:600;color:var(--text)">PIN Lock</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${hasPIN() ? 'PIN is set · Tap to remove' : 'Not set · Tap to protect app with 4-digit PIN'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+    }
+
+    function renderSummary(app) {
+      const { received, expected, paidBorrowers, monthName } = getMonthlySummary();
+      const pct = expected > 0 ? Math.round((received / expected) * 100) : 0;
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700">Monthly Summary</h2>
+              <span style="font-size:13px;color:var(--text-dim)">${monthName}</span>
+            </div>
+          </div>
+
+          <div style="background:var(--card-alt);border-radius:14px;padding:20px;margin-bottom:10px">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Received this month</div>
+            <div class="mono" style="font-size:32px;font-weight:700;color:var(--success)">${fmt(received)}</div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:4px">of ${fmt(expected)} expected</div>
+            <div class="progress-bar" style="height:8px;margin-top:12px"><div class="progress-fill" style="width:${Math.min(pct,100)}%;height:8px"></div></div>
+            <div style="font-size:11px;color:var(--accent);margin-top:6px;font-family:'JetBrains Mono',monospace">${pct}% collected</div>
+          </div>
+
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px;font-weight:600">Payments Received</span>
+            </div>`;
+
+      if (paidBorrowers.length === 0) {
+        html += `<div style="padding:30px 16px;text-align:center;color:var(--text-dim);font-size:13px">No payments received yet this month</div>`;
+      } else {
+        paidBorrowers.sort((a, b) => b.amount - a.amount).forEach((p, i) => {
+          const borderBot = i < paidBorrowers.length - 1 ? "border-bottom:1px solid var(--border);" : "";
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;${borderBot}">
+              <div>
+                <div style="font-size:14px;font-weight:500;color:var(--text)">${p.name}</div>
+                <div style="font-size:11px;color:var(--text-dim)">${p.weeks} week${p.weeks > 1 ? 's' : ''} paid</div>
+              </div>
+              <div class="mono" style="font-size:15px;font-weight:700;color:var(--success)">${fmt(p.amount)}</div>
+            </div>`;
+        });
+      }
+
+      html += `</div></div>`;
+      app.innerHTML = html;
+    }
+
+    function renderWeekly(app) {
+      const { received, expected, paidThisWeek, expectedThisWeek, weekLabel } = getWeeklySummary();
+      const pct = expected > 0 ? Math.round((received / expected) * 100) : 0;
+      const pendingList = expectedThisWeek.filter(e => !e.isPaid);
+      // Paid count = weeks scheduled this week that are already paid (matches pending semantics)
+      const paidScheduledThisWeek = expectedThisWeek.filter(e => e.isPaid);
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700;color:var(--text)">This Week's Collection</h2>
+              <span style="font-size:13px;color:var(--text-dim)">${weekLabel}</span>
+            </div>
+          </div>
+
+          <div style="background:var(--card-alt);border-radius:14px;padding:20px;margin-bottom:16px">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Received this week</div>
+            <div class="mono" style="font-size:32px;font-weight:700;color:var(--success)">${fmt(received)}</div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:4px">of ${fmt(expected)} expected</div>
+            <div class="progress-bar" style="height:8px;margin-top:12px"><div class="progress-fill" style="width:${Math.min(pct,100)}%;height:8px"></div></div>
+            <div style="font-size:11px;color:var(--accent);margin-top:6px;font-family:'JetBrains Mono',monospace">${pct}% collected</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+            <div class="stat-card">
+              <div class="stat-label">Paid</div>
+              <div class="stat-value" style="color:var(--success)">${paidScheduledThisWeek.length}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Pending</div>
+              <div class="stat-value" style="color:var(--warn)">${pendingList.length}</div>
+            </div>
+          </div>`;
+
+      // Pending this week
+      if (pendingList.length > 0) {
+        html += `
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:16px">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">Pending This Week</span>
+            </div>`;
+        pendingList.forEach((p, i) => {
+          const borderBot = i < pendingList.length - 1 ? "border-bottom:1px solid var(--border);" : "";
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;${borderBot};cursor:pointer" onclick="goDetail('${p.id}')">
+              <div>
+                <div style="font-size:14px;font-weight:500;color:var(--text)">${p.name}</div>
+                <div style="font-size:11px;color:var(--text-dim)">Week ${p.weekNum} · Due ${fmtDate(p.dueDate.toISOString())}</div>
+              </div>
+              <div class="mono" style="font-size:15px;font-weight:700;color:var(--warn)">${fmt(p.amount)}</div>
+            </div>`;
+        });
+        html += `</div>`;
+      }
+
+      // Received this week
+      if (paidThisWeek.length > 0) {
+        html += `
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">Received This Week</span>
+            </div>`;
+        paidThisWeek.forEach((p, i) => {
+          const borderBot = i < paidThisWeek.length - 1 ? "border-bottom:1px solid var(--border);" : "";
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;${borderBot}">
+              <div>
+                <div style="font-size:14px;font-weight:500;color:var(--text)">${p.name}</div>
+                <div style="font-size:11px;color:var(--text-dim)">Week ${p.weekNum} · Paid ${fmtDate(p.date.toISOString())}</div>
+              </div>
+              <div class="mono" style="font-size:15px;font-weight:700;color:var(--success)">${fmt(p.amount)}</div>
+            </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (expectedThisWeek.length === 0) {
+        html += `
+          <div style="text-align:center;padding:40px 20px">
+            <div style="font-size:14px;color:var(--text-dim)">No payments scheduled this week</div>
+          </div>`;
+      }
+
+      html += `</div>`;
+      app.innerHTML = html;
+    }
+
+
+    function renderArchive(app) {
+      const completed = getCompletedBorrowers();
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700">Completed Archive</h2>
+              <span style="font-size:13px;color:var(--text-dim)">${completed.length} ${completed.length === 1 ? 'loan' : 'loans'} fully repaid</span>
+            </div>
+          </div>`;
+
+      if (completed.length === 0) {
+        html += `
+          <div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📁</div>
+            <div style="font-size:16px;color:var(--text-dim)">No completed loans yet</div>
+          </div>`;
+      } else {
+        html += `<div style="display:flex;flex-direction:column;gap:10px">`;
+        completed.forEach(b => {
+          const plan = getPlan(b);
+          const received = calcReceived(b);
+          // Compute completion date: last paid week's date (if available)
+          const lastWeek = b.weeks[b.weeks.length - 1];
+          const completionIso = isWeekPaid(lastWeek) ? getWeekDate(lastWeek) : b.createdAt;
+          html += `
+            <div class="card" onclick="goDetail('${b.id}')">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+                <div>
+                  <div style="font-size:16px;font-weight:600">${b.name}</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${fmt(plan.weekly)}/week · ${plan.weeks} weeks</div>
+                  <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Cr: ${fmtShortDate(b.createdAt)} · Comp: ${fmtShortDate(completionIso)}</div>
+                </div>
+                <span class="badge-complete">COMPLETE</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="flex:1" class="progress-bar" style="height:6px"><div style="height:6px"><div class="progress-fill" style="width:100%;background:var(--success)"></div></div></div>
+                <span class="mono" style="font-size:12px;color:var(--success);font-weight:500;min-width:70px;text-align:right">${fmt(received)}</span>
+              </div>
+            </div>`;
+        });
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      app.innerHTML = html;
+    }
+
+
+    function renderBackups(app) {
+      const history = getBackupHistory();
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700;color:var(--text)">Backup History</h2>
+              <span style="font-size:13px;color:var(--text-dim)">${history.length} snapshot${history.length === 1 ? '' : 's'} · Last 5 kept</span>
+            </div>
+          </div>
+
+          <div style="background:var(--card-alt);border-radius:12px;padding:14px;margin-bottom:16px">
+            <div style="font-size:12px;color:var(--text-dim);line-height:1.5">
+              Every time you tap <strong style="color:var(--text)">💾 Backup Now</strong> in the menu, a snapshot is automatically saved here. Your last 5 backups are kept in-app so you can quickly restore without needing a file.
+            </div>
+          </div>
+
+          <div class="card" style="margin-bottom:16px" onclick="toggleAutoBackup()">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+              <div>
+                <div style="font-size:15px;font-weight:600;color:var(--text)">Auto Backup Every 24 hrs</div>
+                <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${isAutoBackupEnabled() ? `Last: ${getLastAutoBackupTime() ? new Date(getLastAutoBackupTime()).toLocaleDateString("en-IN", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }) : 'Never'}` : 'Saves a snapshot once every 24 hours'}</div>
+              </div>
+              <div style="width:44px;height:26px;border-radius:100px;background:${isAutoBackupEnabled() ? 'var(--accent)' : 'var(--border)'};position:relative;transition:background 0.2s;flex-shrink:0">
+                <div style="position:absolute;top:3px;left:${isAutoBackupEnabled() ? '21px' : '3px'};width:20px;height:20px;border-radius:50%;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="changeExportFolder()" style="width:100%;background:var(--card-alt);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;margin-bottom:16px">📂 Change Backup Folder</button>`;
+
+      if (history.length === 0) {
+        html += `
+          <div style="text-align:center;padding:40px 20px">
+            <div style="font-size:48px;margin-bottom:16px">💾</div>
+            <div style="font-size:14px;color:var(--text-dim)">No backups yet</div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:4px">Tap 💾 Backup on the home screen to create one</div>
+          </div>`;
+      } else {
+        html += `<div style="display:flex;flex-direction:column;gap:10px">`;
+        history.forEach(snap => {
+          const when = new Date(snap.createdAt);
+          const dateStr = when.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+          const timeStr = when.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+          html += `
+            <div class="card">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                <div style="flex:1">
+                  <div style="font-size:14px;font-weight:600;color:var(--text)">${dateStr} · ${timeStr}</div>
+                  <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${snap.count} borrower${snap.count === 1 ? '' : 's'}</div>
+                </div>
+                <button onclick="restoreBackup('${snap.id}')" style="background:rgba(34,211,167,0.12);color:var(--accent);border:1px solid rgba(34,211,167,0.3);border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">Restore</button>
+                <button onclick="deleteBackup('${snap.id}',event)" style="background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer">🗑</button>
+              </div>
+            </div>`;
+        });
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      app.innerHTML = html;
+    }
+
+
+    function renderDayStats(app) {
+      // Count payments received per day of week (Mon-Sun)
+      const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+      const counts = Array(7).fill(0);   // number of payments on each day
+      const amounts = Array(7).fill(0);  // total received on each day
+
+      borrowers.forEach(b => {
+        b.weeks.forEach((w, i) => {
+          if (isWeekPaid(w)) {
+            const d = new Date(getWeekDate(w));
+            // JS: 0=Sun, 1=Mon ... 6=Sat. Convert to Mon-first: 0=Mon ... 6=Sun
+            const jsDay = d.getDay();
+            const monFirst = jsDay === 0 ? 6 : jsDay - 1;
+            counts[monFirst] += 1;
+            amounts[monFirst] += getBorrowerWeekAmount(b, i);
+          }
+        });
+      });
+
+      const totalCount = counts.reduce((s, c) => s + c, 0);
+      const maxCount = Math.max(1, ...counts);
+      const topDayIdx = counts.indexOf(Math.max(...counts));
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700;color:var(--text)">Collection Days</h2>
+              <span style="font-size:13px;color:var(--text-dim)">Your payment pattern by weekday</span>
+            </div>
+          </div>`;
+
+      if (totalCount === 0) {
+        html += `
+          <div style="text-align:center;padding:40px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📆</div>
+            <div style="font-size:14px;color:var(--text-dim)">No payments logged yet</div>
+          </div>`;
+      } else {
+        html += `
+          <div style="background:var(--card-alt);border-radius:14px;padding:20px;margin-bottom:16px">
+            <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Most common day</div>
+            <div style="font-size:28px;font-weight:700;color:var(--accent)">${dayNames[topDayIdx]}day</div>
+            <div style="font-size:12px;color:var(--text-dim);margin-top:4px">${counts[topDayIdx]} of ${totalCount} payments (${Math.round(counts[topDayIdx]/totalCount*100)}%)</div>
+          </div>
+
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);padding:16px">
+            <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:14px">Payments by Day</div>
+            <div style="display:flex;flex-direction:column;gap:10px">`;
+
+        for (let i = 0; i < 7; i++) {
+          const barPct = (counts[i] / maxCount) * 100;
+          const isTop = i === topDayIdx && counts[i] > 0;
+          html += `
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="font-size:12px;color:var(--text-dim);width:36px;font-weight:600">${dayNames[i]}</div>
+                <div style="flex:1;background:var(--bg);border-radius:100px;height:10px;overflow:hidden">
+                  <div style="background:linear-gradient(90deg,var(--accent),var(--accent-dim));width:${barPct}%;height:100%;border-radius:100px;transition:width 0.4s ease"></div>
+                </div>
+                <div style="font-size:11px;color:${isTop ? 'var(--accent)' : 'var(--text-dim)'};font-weight:600;min-width:80px;text-align:right">${counts[i]} · ${fmt(amounts[i])}</div>
+              </div>`;
+        }
+
+        html += `
+            </div>
+          </div>`;
+      }
+
+      html += `</div>`;
+      app.innerHTML = html;
+    }
+
+    // Calendar state — current month being viewed
+    let calendarMonthOffset = 0;
+
+    function calendarNav(delta) {
+      calendarMonthOffset += delta;
+      render();
+    }
+
+    function renderCalendar(app) {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const viewDate = new Date(today.getFullYear(), today.getMonth() + calendarMonthOffset, 1);
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const monthName = viewDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+      // Build map of expected payments by YYYY-MM-DD within this month
+      const firstOfMonth = new Date(year, month, 1);
+      const lastOfMonth = new Date(year, month + 1, 0);
+      const paymentsByDay = {}; // key: day (1-31), value: [{name, amount, isPaid}]
+
+      borrowers.forEach(b => {
+        const plan = getPlan(b);
+        const credited = new Date(b.createdAt);
+        for (let i = 0; i < plan.weeks; i++) {
+          const dueDate = new Date(credited);
+          dueDate.setDate(credited.getDate() + (i + 1) * 7);
+          if (dueDate.getFullYear() === year && dueDate.getMonth() === month) {
+            const day = dueDate.getDate();
+            if (!paymentsByDay[day]) paymentsByDay[day] = [];
+            paymentsByDay[day].push({
+              name: b.name,
+              amount: getBorrowerWeekAmount(b, i),
+              isPaid: isWeekPaid(b.weeks[i]),
+              weekNum: i + 1,
+            });
+          }
+        }
+      });
+
+      // Calculate month totals
+      let monthExpected = 0;
+      let monthPaid = 0;
+      Object.values(paymentsByDay).forEach(list => {
+        list.forEach(p => {
+          monthExpected += p.amount;
+          if (p.isPaid) monthPaid += p.amount;
+        });
+      });
+
+      // Grid: Mon-first weekdays
+      const firstDayJs = firstOfMonth.getDay(); // 0=Sun
+      const firstDayMonFirst = firstDayJs === 0 ? 6 : firstDayJs - 1; // 0=Mon
+      const daysInMonth = lastOfMonth.getDate();
+      const todayDay = (today.getFullYear() === year && today.getMonth() === month) ? today.getDate() : -1;
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goMenu()">←</button>
+            <div style="flex:1">
+              <h2 style="font-size:22px;font-weight:700;color:var(--text)">Collection Calendar</h2>
+              <span style="font-size:13px;color:var(--text-dim)">Expected payments by date</span>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <button onclick="calendarNav(-1)" style="background:var(--card-alt);border:none;color:var(--text);width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:16px">‹</button>
+            <div style="font-size:16px;font-weight:600;color:var(--text)">${monthName}</div>
+            <button onclick="calendarNav(1)" style="background:var(--card-alt);border:none;color:var(--text);width:36px;height:36px;border-radius:10px;cursor:pointer;font-size:16px">›</button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+            <div class="stat-card"><div class="stat-label">Expected</div><div class="stat-value" style="color:var(--text)">${fmt(monthExpected)}</div></div>
+            <div class="stat-card"><div class="stat-label">Received</div><div class="stat-value" style="color:var(--success)">${fmt(monthPaid)}</div></div>
+          </div>
+
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);padding:12px;margin-bottom:16px">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px">
+              ${["M","T","W","T","F","S","S"].map(d => `<div style="text-align:center;font-size:10px;color:var(--text-dim);font-weight:700;padding:4px 0">${d}</div>`).join("")}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">`;
+
+      // Empty cells before month starts
+      for (let i = 0; i < firstDayMonFirst; i++) {
+        html += `<div></div>`;
+      }
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const list = paymentsByDay[day] || [];
+        const hasPayments = list.length > 0;
+        const allPaid = hasPayments && list.every(p => p.isPaid);
+        const anyPaid = hasPayments && list.some(p => p.isPaid);
+        const totalAmt = list.reduce((s, p) => s + p.amount, 0);
+        const isToday = day === todayDay;
+
+        let bg = "transparent";
+        let color = "var(--text-dim)";
+        let badge = "";
+        if (hasPayments) {
+          if (allPaid) { bg = "rgba(16,185,129,0.15)"; color = "var(--success)"; }
+          else if (anyPaid) { bg = "rgba(245,158,11,0.15)"; color = "var(--warn)"; }
+          else { bg = "rgba(34,211,167,0.1)"; color = "var(--accent)"; }
+          badge = `<div style="font-size:8px;font-weight:700;margin-top:2px">${list.length}</div>`;
+        }
+
+        html += `
+              <div onclick="${hasPayments ? `calendarDayInfo('${year}-${month+1}-${day}')` : ''}" style="aspect-ratio:1;background:${bg};border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:${hasPayments ? 'pointer' : 'default'};${isToday ? 'border:2px solid var(--accent);' : ''}padding:4px">
+                <div style="font-size:13px;font-weight:${isToday ? 700 : 500};color:${color}">${day}</div>
+                ${badge}
+              </div>`;
+      }
+
+      html += `
+            </div>
+          </div>`;
+
+      // List of upcoming payments this month (not yet paid, on or after today)
+      const upcoming = [];
+      Object.entries(paymentsByDay).forEach(([day, list]) => {
+        list.forEach(p => {
+          if (!p.isPaid) {
+            const dayNum = parseInt(day);
+            upcoming.push({ ...p, day: dayNum });
+          }
+        });
+      });
+      upcoming.sort((a, b) => a.day - b.day);
+
+      if (upcoming.length > 0) {
+        html += `
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px;font-weight:600;color:var(--text)">Upcoming (${upcoming.length})</span>
+            </div>`;
+        upcoming.forEach((p, i) => {
+          const dateStr = new Date(year, month, p.day).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+          const isPast = new Date(year, month, p.day) < today;
+          const borderBot = i < upcoming.length - 1 ? "border-bottom:1px solid var(--border);" : "";
+          html += `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;${borderBot}">
+              <div>
+                <div style="font-size:14px;font-weight:500;color:var(--text)">${p.name}</div>
+                <div style="font-size:11px;color:${isPast ? 'var(--danger)' : 'var(--text-dim)'}">Week ${p.weekNum} · ${dateStr}${isPast ? ' (past)' : ''}</div>
+              </div>
+              <div class="mono" style="font-size:14px;font-weight:700;color:${isPast ? 'var(--danger)' : 'var(--warn)'}">${fmt(p.amount)}</div>
+            </div>`;
+        });
+        html += `</div>`;
+      }
+
+      html += `</div>`;
+      app.innerHTML = html;
+    }
+
+    function calendarDayInfo(key) {
+      const [y, m, d] = key.split("-").map(Number);
+      const lines = [`Payments on ${d} ${new Date(y, m-1, d).toLocaleDateString("en-IN", { month: "short", year: "numeric" })}:\n`];
+      borrowers.forEach(b => {
+        const plan = getPlan(b);
+        const credited = new Date(b.createdAt);
+        for (let i = 0; i < plan.weeks; i++) {
+          const dueDate = new Date(credited);
+          dueDate.setDate(credited.getDate() + (i + 1) * 7);
+          if (dueDate.getFullYear() === y && dueDate.getMonth() === m-1 && dueDate.getDate() === d) {
+            const paid = isWeekPaid(b.weeks[i]);
+            const amt = getBorrowerWeekAmount(b, i);
+            lines.push(`${paid ? "✓" : "○"} ${b.name} · Week ${i+1} · ₹${amt.toLocaleString("en-IN")}`);
+          }
+        }
+      });
+      alert(lines.join("\n"));
+    }
+
+
+    function renderBorrowerList() {
+      const filtered = getFilteredBorrowers();
+      if (filtered.length === 0) {
+        return `<div style="text-align:center;padding:40px 20px">
+          <div style="font-size:14px;color:var(--text-dim)">No borrowers match</div>
+        </div>`;
+      }
+      let html = `<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">`;
+      filtered.forEach(b => {
+        const plan = getPlan(b);
+        const paid = b.weeks.filter(isWeekPaid).length;
+        const received = calcReceived(b);
+        const balance = plan.total - received;
+        const progress = (paid / plan.weeks) * 100;
+        const isComplete = paid === plan.weeks;
+        const overdue = getOverdueStatus(b);
+        const daysSince = getDaysSinceLastPayment(b);
+        // Show "X days since" only if not overdue, not complete, and 5+ days since last payment
+        const showNearingDue = !overdue.overdue && !isComplete && daysSince !== null && daysSince >= 5;
+
+        // Expected completion: anchor on Week 1 paid date if available, else credited date
+        const anchorIso = isWeekPaid(b.weeks[0]) ? getWeekDate(b.weeks[0]) : b.createdAt;
+        const expectedEnd = new Date(anchorIso);
+        expectedEnd.setUTCDate(expectedEnd.getUTCDate() + plan.weeks * 7);
+
+        html += `
+          <div class="card" onclick="goDetail('${b.id}')" style="${overdue.overdue ? 'border:1px solid var(--danger)' : ''}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+              <div>
+                <div style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  ${b.name}
+                  ${b.repaymentDay ? `<span style="font-size:10px;background:rgba(34,211,167,0.12);color:var(--accent);padding:2px 8px;border-radius:20px;font-weight:600">${b.repaymentDay}</span>` : ''}
+                  ${overdue.overdue ? `<span style="font-size:10px;background:rgba(239,68,68,0.15);color:var(--danger);padding:2px 8px;border-radius:20px;font-weight:700">OVERDUE ${overdue.daysLate}d</span>` : ''}
+                  ${showNearingDue ? `<span style="font-size:10px;background:rgba(245,158,11,0.15);color:var(--warn);padding:2px 8px;border-radius:20px;font-weight:600">${daysSince}d since last</span>` : ''}
+                </div>
+                <div style="font-size:12px;color:var(--text-dim);margin-top:2px">${fmt(plan.weekly)}/week · ${paid}/${plan.weeks} weeks</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Cr: ${fmtShortDate(b.createdAt)} · Ex-Comp: ${fmtShortDate(expectedEnd.toISOString())}</div>
+              </div>
+              <div style="text-align:right">
+                ${isComplete
+                  ? `<span class="badge-complete">COMPLETE</span>`
+                  : `<span class="mono" style="font-size:15px;font-weight:700;color:var(--warn)">${fmt(balance)}</span>`
+                }
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div style="flex:1" class="progress-bar" style="height:6px"><div style="height:6px"><div class="progress-fill" style="width:${progress}%;${isComplete ? 'background:var(--success)' : ''}"></div></div></div>
+              <span class="mono" style="font-size:12px;color:var(--success);font-weight:500;min-width:70px;text-align:right">${fmt(received)}</span>
+              ${!isComplete
+                ? `<button onclick="quickTick('${b.id}',event)" style="background:rgba(34,211,167,0.12);color:var(--accent);border:1px solid rgba(34,211,167,0.3);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap">+ W${paid + 1}</button>`
+                : ''}
+            </div>
+          </div>`;
+      });
+      html += `</div>`;
+      return html;
+    }
+
+    function renderHome(app) {
+      const totalPending = borrowers.reduce((s, b) => {
+        const plan = getPlan(b);
+        return s + (plan.total - calcReceived(b));
+      }, 0);
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <h1 style="font-size:26px;font-weight:700;letter-spacing:-0.5px">Weekly Tracker</h1>
+            <div style="display:flex;gap:8px">
+              <button onclick="goMenu()" style="background:var(--card-alt);border:none;color:var(--text);width:42px;height:42px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:3px">
+                <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+                <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+                <span style="display:block;width:18px;height:2px;background:var(--text);border-radius:2px"></span>
+              </button>
+            </div>
+          </div>`;
+
+      if (borrowers.length > 0) {
+        html += `
+          <div class="stat-card" style="padding:16px 18px;text-align:left;margin-bottom:16px">
+            <div class="stat-label" style="margin-bottom:6px">Total Pending</div>
+            <div class="stat-value" style="color:var(--warn);font-size:28px">${fmt(totalPending)}</div>
+          </div>
+
+          <div style="margin-bottom:12px">
+            <input id="searchInput" type="text" placeholder="🔍 Search borrowers..." value="${searchQuery.replace(/"/g,'&quot;')}" oninput="setSearch(this.value)" style="width:100%;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;box-sizing:border-box" />
+          </div>
+
+          <div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px">
+            ${chip("Newest", "newest", sortBy === "newest", "setSort")}
+            ${chip("Oldest", "oldest", sortBy === "oldest", "setSort")}
+            ${chip("Due Soon", "duesoon", sortBy === "duesoon", "setSort")}
+          </div>`;
+      }
+
+      if (borrowers.length === 0) {
+        html += `
+          <div style="text-align:center;padding:60px 20px">
+            <div style="font-size:48px;margin-bottom:16px">📒</div>
+            <div style="font-size:16px;color:var(--text-dim);margin-bottom:6px">No borrowers yet</div>
+            <div style="font-size:13px;color:var(--text-dim)">Tap + to add your first entry</div>
+          </div>`;
+      } else {
+        html += `<div id="borrowerList">${renderBorrowerList()}</div>`;
+      }
+
+      html += `<button class="fab" onclick="goAdd()">+ Add Borrower</button>
+        </div>`;
+      app.innerHTML = html;
+    }
+
+    function chip(label, value, active, fnName) {
+      return `<button onclick="${fnName}('${value}')" style="background:${active ? 'var(--accent)' : 'var(--card-alt)'};color:${active ? 'var(--fab-text)' : 'var(--text)'};border:none;border-radius:100px;padding:6px 14px;font-size:12px;font-weight:${active ? 700 : 500};cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif">${label}</button>`;
+    }
+
+    function renderDetail(app) {
+      const b = getSelected();
+      if (!b) { goHome(); return; }
+      const plan = getPlan(b);
+      const paid = b.weeks.filter(isWeekPaid).length;
+      const received = calcReceived(b);
+      const balance = plan.total - received;
+      const progress = (paid / plan.weeks) * 100;
+      const isComplete = paid === plan.weeks;
+
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+            <button class="back-btn" onclick="goHome()">←</button>
+            <div style="flex:1">
+              ${editingNameId === b.id
+                ? `<div style="display:flex;align-items:center;gap:6px">
+                    <input id="editNameInput" type="text" value="${b.name.replace(/"/g,'&quot;')}" class="input-field" style="padding:8px 10px;font-size:18px;font-weight:700" onkeydown="if(event.key==='Enter')saveBorrowerName('${b.id}');if(event.key==='Escape')cancelEditName()" />
+                    <button onclick="saveBorrowerName('${b.id}')" style="background:var(--accent);color:var(--fab-text);border:none;border-radius:8px;width:36px;height:36px;font-size:16px;font-weight:700;cursor:pointer">✓</button>
+                    <button onclick="cancelEditName()" style="background:var(--card-alt);color:var(--text-dim);border:none;border-radius:8px;width:36px;height:36px;font-size:16px;cursor:pointer">✕</button>
+                  </div>`
+                : `<h2 style="font-size:22px;font-weight:700;display:inline-flex;align-items:center;gap:8px;cursor:pointer" onclick="startEditName('${b.id}')">${b.name} <span style="font-size:12px;color:var(--accent)">✎</span></h2>`
+              }
+              <div style="font-size:13px;color:var(--text-dim);margin-top:2px">${fmt(plan.weekly)}/week · ${fmt(plan.principal)} loan</div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:8px">
+                <span>Credited on</span>
+                <input type="date" value="${toUtcDateStr(b.createdAt)}" onchange="updateCreditedDate('${b.id}',this.value)" style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:11px;padding:3px 6px;font-family:'DM Sans',sans-serif;outline:none" />
+              </div>
+              ${(() => {
+                if (isComplete) {
+                  // Actual completion = date of last paid week
+                  const lastWeek = b.weeks[b.weeks.length - 1];
+                  const completionIso = isWeekPaid(lastWeek) ? getWeekDate(lastWeek) : b.createdAt;
+                  return `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Completed on: <span style="color:var(--success)">${fmtDate(completionIso)}</span></div>`;
+                }
+                // Expected completion: anchor on Week 1 payment date if available, else credited date
+                const anchorIso = isWeekPaid(b.weeks[0]) ? getWeekDate(b.weeks[0]) : b.createdAt;
+                const anchor = new Date(anchorIso);
+                const expectedEnd = new Date(anchor);
+                expectedEnd.setUTCDate(anchor.getUTCDate() + plan.weeks * 7);
+                return `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">Expected completion: <span style="color:var(--accent)">${fmtDate(expectedEnd.toISOString())}</span></div>`;
+              })()}
+            </div>
+          </div>
+
+          <div style="background:var(--card-alt);border-radius:12px;padding:16px;margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+              <span style="font-size:13px;color:var(--text-dim)">Progress</span>
+              <span class="mono" style="font-size:13px;color:var(--accent);font-weight:500">${paid}/${plan.weeks} weeks</span>
+            </div>
+            <div class="progress-bar" style="height:10px"><div class="progress-fill" style="width:${progress}%;height:10px"></div></div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px">
+            <div style="background:var(--card-alt);border-radius:12px;padding:14px">
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Received</div>
+              <div class="mono" style="font-size:20px;font-weight:700;color:var(--success)">${fmt(received)}</div>
+            </div>
+            <div style="background:var(--card-alt);border-radius:12px;padding:14px">
+              <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Balance</div>
+              <div class="mono" style="font-size:20px;font-weight:700;color:${balance > 0 ? 'var(--warn)' : 'var(--success)'}">${fmt(balance)}</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom:16px">
+            <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Comment</label>
+            <textarea oninput="updateBorrowerComment('${b.id}',this.value)" placeholder="No comment yet. Add a note about how the amount was given..." style="width:100%;min-height:60px;background:var(--input-bg);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box">${(b.comment || '').replace(/</g,'&lt;')}</textarea>
+          </div>
+
+          <div style="background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+              <span style="font-size:14px;font-weight:600">Weekly Payments</span>
+            </div>`;
+
+      b.weeks.forEach((weekData, i) => {
+        const checked = isWeekPaid(weekData);
+        const paidDate = getWeekDate(weekData);
+        const weekAmt = getBorrowerWeekAmount(b, i);
+        const borderBot = i < b.weeks.length - 1 ? "border-bottom:1px solid var(--border);" : "";
+        html += `
+            <div class="week-row ${checked ? 'checked' : ''}" style="${borderBot}">
+              <div class="checkbox ${checked ? 'on' : 'off'}" onclick="toggleWeek('${b.id}',${i})">${checked ? '<span style="color:var(--fab-text);font-size:14px;font-weight:700">✓</span>' : ''}</div>
+              <div style="flex:1" onclick="toggleWeek('${b.id}',${i})">
+                <span style="font-size:15px;color:${checked ? 'var(--text)' : 'var(--text-dim)'};font-weight:${checked ? 500 : 400};display:block">Week ${i + 1}</span>
+                ${checked && paidDate
+                  ? `<div style="font-size:11px;color:var(--text-dim);margin-top:4px;display:flex;align-items:center;gap:6px" onclick="event.stopPropagation()">
+                       <span>Paid on</span>
+                       <input type="date" value="${toUtcDateStr(paidDate)}" onchange="updateWeekDate('${b.id}',${i},this.value)" onclick="event.stopPropagation()" style="background:var(--input-bg);border:1px solid var(--border);border-radius:6px;color:var(--accent);font-size:11px;padding:2px 5px;font-family:'DM Sans',sans-serif;outline:none" />
+                     </div>`
+                  : ''}
+              </div>
+              <span class="mono" style="font-size:14px;color:${checked ? 'var(--accent)' : 'var(--text-dim)'};font-weight:500" onclick="toggleWeek('${b.id}',${i})">${fmt(weekAmt)}</span>
+            </div>`;
+      });
+
+      html += `</div>`;
+
+      // Delete section
+      html += `<div style="margin-top:24px;margin-bottom:40px">`;
+      if (confirmDeleteId === b.id) {
+        html += `
+          <div style="display:flex;gap:10px">
+            <button class="delete-btn" style="flex:1;background:var(--danger);color:#fff;border:none" onclick="deleteBorrower('${b.id}')">Confirm Delete</button>
+            <button class="delete-btn" style="flex:1;background:var(--card-alt);color:var(--text-dim);border:1px solid var(--border)" onclick="cancelDelete()">Cancel</button>
+          </div>`;
+      } else {
+        html += `<button class="delete-btn" onclick="askDelete('${b.id}')">Remove Borrower</button>`;
+      }
+      html += `</div></div>`;
+
+      app.innerHTML = html;
+    }
+
+    function renderAdd(app) {
+      const planKeys = Object.keys(PLANS);
+      let html = `
+        <div class="fade-in">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px">
+            <button class="back-btn" onclick="goHome()">←</button>
+            <h2 style="font-size:22px;font-weight:700">New Borrower</h2>
+          </div>
+
+          <div style="margin-bottom:24px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Person's Name</label>
+            <input id="nameInput" type="text" placeholder="Enter name" class="input-field" />
+          </div>
+
+          <div style="margin-bottom:24px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Repayment Day</label>
+            <select id="repaymentDayInput" onchange="newRepaymentDay=this.value" style="width:100%;padding:14px 16px;font-size:16px;background:var(--input-bg);border:2px solid var(--border);border-radius:12px;color:var(--text);outline:none;font-family:'DM Sans',sans-serif;appearance:none;-webkit-appearance:none;cursor:pointer">
+              ${["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map(d => `<option value="${d}" ${newRepaymentDay === d ? 'selected' : ''}>${d}</option>`).join("")}
+            </select>
+          </div>
+
+          <div style="margin-bottom:32px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Select Plan</label>
+            <div style="display:flex;flex-direction:column;gap:12px">`;
+
+      planKeys.forEach(key => {
+        const plan = PLANS[key];
+        const isActive = newPlan === Number(key);
+        html += `
+              <div class="plan-option ${isActive ? 'active' : 'inactive'}" onclick="selectPlan(${key})">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <span class="mono" style="font-size:18px;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'}">
+                    ${fmt(plan.weekly)}<span style="font-size:13px;font-weight:400;color:var(--text-dim)">/week</span>
+                  </span>
+                  <div style="width:22px;height:22px;border-radius:50%;${isActive ? 'background:var(--accent)' : 'border:2px solid var(--text-dim)'};display:flex;align-items:center;justify-content:center">
+                    ${isActive ? '<span style="color:var(--fab-text);font-size:12px;font-weight:700">✓</span>' : ''}
+                  </div>
+                </div>
+                <div style="font-size:13px;color:var(--text-dim)">Loan: ${fmt(plan.principal)} · ${plan.weeks} weeks</div>
+              </div>`;
+      });
+
+      // Custom plan option
+      const isCustomActive = newPlan === "custom";
+      html += `
+              <div class="plan-option ${isCustomActive ? 'active' : 'inactive'}" onclick="${isCustomActive ? '' : `selectPlan('custom')`}">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:${isCustomActive ? '12' : '6'}px">
+                  <span style="font-size:16px;font-weight:700;color:${isCustomActive ? 'var(--accent)' : 'var(--text)'}">
+                    ✨ Custom Plan
+                  </span>
+                  <div style="width:22px;height:22px;border-radius:50%;${isCustomActive ? 'background:var(--accent)' : 'border:2px solid var(--text-dim)'};display:flex;align-items:center;justify-content:center">
+                    ${isCustomActive ? '<span style="color:var(--fab-text);font-size:12px;font-weight:700">✓</span>' : ''}
+                  </div>
+                </div>
+                ${isCustomActive
+                  ? `<div style="display:flex;flex-direction:column;gap:10px" onclick="event.stopPropagation()">
+                      <div>
+                        <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Principal (amount lent)</label>
+                        <input id="customPrincipalInput" type="number" inputmode="numeric" placeholder="e.g., 50000" value="${customPrincipal}" oninput="updateCustomField('principal',this.value)" class="input-field" style="padding:10px 12px;font-size:14px" />
+                      </div>
+                      <div style="display:flex;gap:10px">
+                        <div style="flex:1">
+                          <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Weekly amount</label>
+                          <input id="customWeeklyInput" type="number" inputmode="numeric" placeholder="e.g., 5000" value="${customWeekly}" oninput="updateCustomField('weekly',this.value)" class="input-field" style="padding:10px 12px;font-size:14px" />
+                        </div>
+                        <div style="flex:1">
+                          <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Weeks</label>
+                          <input id="customWeeksInput" type="number" inputmode="numeric" placeholder="e.g., 12" value="${customWeeks}" oninput="updateCustomField('weeks',this.value)" class="input-field" style="padding:10px 12px;font-size:14px" />
+                        </div>
+                      </div>
+                      <div>
+                        <label style="display:block;font-size:11px;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Final week amount <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+                        <input id="customFinalWeeklyInput" type="number" inputmode="numeric" placeholder="Leave empty if same as weekly" value="${customFinalWeekly}" oninput="updateCustomField('finalWeekly',this.value)" class="input-field" style="padding:10px 12px;font-size:14px" />
+                        <div style="font-size:10px;color:var(--text-dim);margin-top:4px">Use this if the last week is a different amount (e.g., all weeks ₹3,500 but final week ₹4,500)</div>
+                      </div>
+                    </div>`
+                  : `<div style="font-size:13px;color:var(--text-dim)">One-off plan with custom principal, weekly amount, and weeks</div>`
+                }
+              </div>`;
+
+      html += `
+            </div>
+          </div>
+
+          <div style="margin-bottom:24px">
+            <label style="display:block;font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">Comment <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+            <textarea id="commentInput" placeholder="e.g., Cash given on 12 Apr, transferred via UPI, etc." style="width:100%;min-height:70px;background:var(--input-bg);border:2px solid var(--border);border-radius:12px;color:var(--text);padding:12px 14px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Note how/when the amount was given to this person</div>
+          </div>
+
+          <button class="primary-btn" onclick="addBorrower()">Add Borrower</button>
+        </div>`;
+
+      app.innerHTML = html;
+    }
+
+    // ===== INIT =====
+    loadData();
+    runAutoBackupIfDue();
+    render();
+
+    // Wire up persistent import file input
+    document.getElementById("importFileInput").addEventListener("change", importData);
+
+    // Auto-lock after inactivity
+    ["click","touchstart","keydown","mousemove","scroll"].forEach(ev => {
+      document.addEventListener(ev, resetIdleTimer, { passive: true });
+    });
+    // Track when the app was last hidden, and re-lock on resume if too much time passed
+    let lastHiddenAt = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        // App is being minimized/backgrounded — record timestamp
+        lastHiddenAt = Date.now();
+        clearIdleTimer();
+      } else {
+        // App resumed — if a PIN is set and we were hidden longer than the idle threshold, lock
+        if (hasPIN() && !appLocked && lastHiddenAt > 0) {
+          const elapsed = Date.now() - lastHiddenAt;
+          if (elapsed >= IDLE_LOCK_MS) {
+            appLocked = true;
+            pinInput = "";
+            pinError = "";
+            pinStage = "enter";
+            currentView = "home";
+            render();
+            lastHiddenAt = 0;
+            return;
+          }
+        }
+        lastHiddenAt = 0;
+        runAutoBackupIfDue();
+        resetIdleTimer();
+      }
+    });
+    resetIdleTimer();
+  </script>
+</body>
+</html>
